@@ -67,19 +67,35 @@ def Array(f, Type):
     val = [Type(f) for _ in range(len)]
     return val
 
-def ByteArrayType(f):
+def ByteType(f):
     return f.read(1)
 
-ByteArray = lambda x: b''.join(Array(x, ByteArrayType))
+ByteArray = lambda x: b''.join(Array(x, ByteType))
 Identifier = ByteArray # An identifier is a byte array which is valid UTF-8. TODO: Figure that out
 
 ExternalKind = VarsInt7
-TableElementType = VarsInt7
-ValueType = VarsInt7
-SignatureType = VarsInt7
-BlockType = VarsInt7
 Boolean = UInt32
 Index = VaruInt32
+
+def ValueType(f):
+    type = TypeEncoding(VarsInt7(f))
+    assert type in [TypeEncoding.i32, TypeEncoding.i64, TypeEncoding.f32, TypeEncoding.f64], "`ValueType` is required to be integer or floating-point"
+    return type
+
+def TableElementType(f):
+    type = TypeEncoding(VarsInt7(f))
+    assert type == TypeEncoding.funcref, "`TableElementType` is required to be `funcref`"
+    return type
+
+def SignatureType(f):
+    type = TypeEncoding(VarsInt7(f))
+    assert type == TypeEncoding.func, "`SignatureType` is required to be `func`"
+    return type
+
+def BlockType(f):
+    type = TypeEncoding(VarsInt7(f))
+    assert type == TypeEncoding.void, "`BlockType` is required to be `void`"
+    return type
 
 class TypeEncoding(Enum):
     # TODO: Use enum

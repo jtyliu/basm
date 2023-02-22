@@ -109,8 +109,10 @@ class WASM(Architecture):
 		if instr.size == 0:
 			return 0
 		match instr.mnemonic:
-			case 'nop' | _:
+			case 'nop':
 				il.append(il.nop())
+			# case _:
+			# 	il.append(il.unimplemented())
 			# case 'i32.const' | 'i64.const' | 'f32.const' | 'f64.const':
 			# 	sz = instr.immediates.size
 			# 	il.append(il.push(sz, il.const(sz, instr.immediates.value)))

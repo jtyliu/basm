@@ -103,20 +103,18 @@ def bytes_read(func):
 @dataclass
 class FunctionSignature:
     opcode = '\x01'
-    form: int = None
-    params: list = None
-    returns: list = None
+    form: TypeEncoding = None
+    params: list[TypeEncoding] = None
+    returns: list[TypeEncoding] = None
 
     @bytes_read
     def __init__(self, f):
-        self.form = TypeEncoding(SignatureType(f))
-        assert self.form == TypeEncoding.func, "`form` is required to be `func`"
-        if self.form == TypeEncoding.func:
-            self.params = Array(f, ValueType)
-            self.returns = Array(f, ValueType)
-            assert len(self.returns) <= 1, "Each `returns` array is required to contain at most one element."
-            # print("Params", list(map(TypeEncoding.lookup, self.params)))
-            # print("returns", list(map(TypeEncoding.lookup, self.returns)))
+        self.form = SignatureType(f)
+        self.params = Array(f, ValueType)
+        self.returns = Array(f, ValueType)
+        assert len(self.returns) <= 1, "Each `returns` array is required to contain at most one element."
+        # print("Params", list(map(TypeEncoding.lookup, self.params)))
+        # print("returns", list(map(TypeEncoding.lookup, self.returns)))
 
 @dataclass
 class ResizableLimits:
@@ -145,18 +143,18 @@ class LinearMemoryDescription:
 @dataclass
 class TableDescription:
     opcode = '\x04'
-    element_type: int
+    element_type: TypeEncoding
     resizable: ResizableLimits
 
     @bytes_read
     def __init__(self, f):
-        self.element_type = TypeEncoding(TableElementType(f))
+        self.element_type = TableElementType(f)
         self.resizable = ResizableLimits(f)
-        assert self.element_type == TypeEncoding.funcref, "Table Description: The element_type is required to be funcref"
+        
 
 @dataclass
 class GlobalDescription:
-    type: int
+    type: TypeEncoding
     mutability: int
 
     @bytes_read
@@ -176,6 +174,7 @@ class Import:
     @bytes_read
     def __init__(self, f):
         # TODO: Add assert for the rest of the validations
+        self.start_addr = f.tell() + Wasm.base_addr
         self.module_name = Identifier(f)
         self.export_name = Identifier(f)
         self.kind = ExternalEncoding(ExternalKind(f))
@@ -290,7 +289,7 @@ class FunctionBody:
         self.locals = Array(f, LocalEntry)
         self.start_addr = f.tell() + Wasm.base_addr
         self.instruction_size = self.body_size-(f.tell()-start)
-        ff = BytesIO(b''.join([ByteArrayType(f) for _ in range(self.body_size-(f.tell()-start))]))
+        ff = BytesIO(b''.join([ByteType(f) for _ in range(self.body_size-(f.tell()-start))]))
         self.instructions = InstantiationTimeInitializer(ff)
         self.name = None
 
