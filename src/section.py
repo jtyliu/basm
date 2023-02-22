@@ -134,8 +134,9 @@ class ResizableLimits:
 
 @dataclass
 class LinearMemoryDescription:
+    # NOTE: What was i smoking when i wrote this? can't i replace this with ResizableLimits?
     opcode = '\x05'
-    limits: int
+    limits: ResizableLimits
 
     @bytes_read
     def __init__(self, f):
@@ -287,7 +288,7 @@ class FunctionBody:
         self.body_size = VaruInt32(f)
         start = f.tell()
         self.locals = Array(f, LocalEntry)
-        self.start_addr = f.tell()
+        self.start_addr = f.tell() + Wasm.base_addr
         self.instruction_size = self.body_size-(f.tell()-start)
         ff = BytesIO(b''.join([ByteArrayType(f) for _ in range(self.body_size-(f.tell()-start))]))
         self.instructions = InstantiationTimeInitializer(ff)
@@ -298,7 +299,7 @@ class FunctionBody:
 class DataInitializer:
     opcode = '\x0b'
     index: int
-    offset: InstantiationTimeInitializer
+    offset: list[Instruction]
     size: int
     data: bytes
 
@@ -311,6 +312,13 @@ class DataInitializer:
         self.size = VaruInt32(f)
         self.start_addr = f.tell()
         self.data = f.read(self.size)
+    
+    def get_offset(self):
+        assert len(self.offset) == 2
+        assert self.offset[-1].mnemonic == 'end'
+        assert self.offset[0].mnemonic == 'i32.const'
+        return self.offset[0].immediates.value
+        
 
 TypeSection = lambda x: Array(x, FunctionSignature)
 ImportSection = lambda x: Array(x, Import)
@@ -340,6 +348,19 @@ SectionOpcodes = {
 }
 
 class Section:
+    customs: list[Custom]
+    types: list[FunctionSignature]
+    imports: list[Import]
+    functions: list[Function]
+    tables: list[TableDescription]
+    linear_memories: list[LinearMemoryDescription]
+    globals: list[GlobalDeclaration]
+    exports: list[Export]
+    start: StartSection
+    elements: list[TableInitializer]
+    codes: list[FunctionBody]
+    datas: list[DataInitializer]
+    
     def __init__(self, f):
         self.magic_cookie = UInt32(f)
         self.version = UInt32(f)
@@ -353,7 +374,7 @@ class Section:
             print("Section opcode", self.opcode, hex(len), peek(f, 0x10))
             name, cls = SectionOpcodes[self.opcode]
             if self.opcode == 0:
-                if hasattr(self, name):
+                if hasattr(self, name):  # TODO: Use defaultdict
                     obj = getattr(self, name)
                     obj.append(cls(BytesIO(f.read(len))))
                 else:
@@ -366,6 +387,8 @@ class Section:
         assert f.read() == b''
 
 class Wasm:
+    base_addr: int = 0x8000000
+
     def __init__(self, f):
         self.sections = Section(f)
         self.functions = []
@@ -376,7 +399,7 @@ class Wasm:
         self.depth_addr_mapping = {}    
 
         for func in self.sections.codes:
-            func.name = "func_{}".format(func.start_addr)
+            func.name = "func_{}".format(func.start_addr - self.base_addr)
             self.functions.append(func)
             self.depth_addr_mapping.update(self.build_branch(func))
         

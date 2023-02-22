@@ -11,17 +11,20 @@ class WASM(Architecture):
 	instr_alignment = 1	# No instruction alignment
 	max_instr_length = 100
 
+	regs = {
+		'SP': RegisterInfo('SP', 8),
+	}
+
+	stack_pointer = "SP"
 
 	def get_instruction_info(self, data, addr):
-		# log_info("Get info: "+str(data), hex(addr))
 		instr = disasm(BytesIO(data))
 		if instr.size == 0:
 			return None
 		wasm_obj: Wasm = Architecture['WASM'].wasm_obj
 		result = InstructionInfo()
 		result.length = instr.size
-		mnemonic = instr.mnemonic
-		match mnemonic:
+		match instr.mnemonic:
 			case "call":
 				function = wasm_obj.functions[instr.immediates.callee]
 				result.add_branch(BranchType.CallDestination, function.start_addr)
@@ -32,18 +35,23 @@ class WASM(Architecture):
 				result.add_branch(BranchType.FalseBranch, addr+instr.size)
 			case "br_table":
 				# Nushy on slack: binja just doesn't support "jumps to N static places" at the disassembly level
+				# log_info("WTF {}".format(hex(addr)))
 				# for addr in wasm_obj.depth_addr_mapping[addr]:
 				# 	print(hex(addr))
 				# 	result.add_branch(BranchType.UnresolvedBranch, addr)
 				pass
 			case "end":
 				if addr in wasm_obj.function_ends:
-					# Quick hack to stop disassembler from going past the "end" instruction
+				# 	log_info("STOP YES {}".format(hex(addr)))
+				# 	# Quick hack to stop disassembler from going past the "end" instruction
 					result.add_branch(BranchType.FunctionReturn)
+				# else:
+				# 	log_info("STOP BRANCHING {} {} {}".format(addr, hex(addr) if addr else "???", wasm_obj.function_ends))
 				
 		return result
 	
 	def get_function_name_text(self, addr):
+
 		for function in Architecture['WASM'].wasm_obj.functions:
 			if function.start_addr == addr:
 				if isinstance(function, Import):
@@ -53,7 +61,10 @@ class WASM(Architecture):
 
 	def get_instruction_text(self, data, addr):
 		# log_info("Get text: "+str(data), hex(addr))
-		instr = disasm(BytesIO(data))
+		try:
+			instr = disasm(BytesIO(data))
+		except Exception:
+			return [], 0
 		if instr.size == 0:
 			return [], 0
 		tokens = [InstructionTextToken(InstructionTextTokenType.TextToken, instr.mnemonic)]
@@ -98,22 +109,22 @@ class WASM(Architecture):
 		if instr.size == 0:
 			return 0
 		match instr.mnemonic:
-			case 'nop':
+			case 'nop' | _:
 				il.append(il.nop())
-			case 'i32.const' | 'i64.const' | 'f32.const' | 'f64.const':
-				sz = instr.immediates.size
-				il.append(il.push(sz, il.const(sz, instr.immediates.value)))
-			case 'global.get' | 'global.set':
-				glob = wasm_obj.globals[instr.immediates.id]
-				instr_val = glob.init[0]
-				sz = instr_val.immediates.size
-				if instr.mnemonic == 'global.get':
-					il.append(il.push(sz, il.load(sz, il.const_pointer(self.address_size, glob.start_addr))))
-				else:
-					il.append(il.store(sz, il.const_pointer(self.address_size, glob.start_addr), il.pop(sz)))
-					il.reg_stack_top_relative()
-			case _:
-				il.append(il.unimplemented())
+			# case 'i32.const' | 'i64.const' | 'f32.const' | 'f64.const':
+			# 	sz = instr.immediates.size
+			# 	il.append(il.push(sz, il.const(sz, instr.immediates.value)))
+			# case 'global.get' | 'global.set':
+			# 	glob = wasm_obj.globals[instr.immediates.id]
+			# 	instr_val = glob.init[0]
+			# 	sz = instr_val.immediates.size
+			# 	if instr.mnemonic == 'global.get':
+			# 		il.append(il.push(sz, il.load(sz, il.const_pointer(self.address_size, glob.start_addr))))
+			# 	else:
+			# 		il.append(il.store(sz, il.const_pointer(self.address_size, glob.start_addr), il.pop(sz)))
+			# 		il.reg_stack_top_relative()
+			# case _:
+			# 	il.append(il.unimplemented())
 		return instr.size
 
 
