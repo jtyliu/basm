@@ -108,6 +108,15 @@ class TypeEncoding(Enum):
     func = -0x20
     void = -0x40
 
+    def get_size(self):
+        match self:
+            case TypeEncoding.i32 | TypeEncoding.f32 | TypeEncoding.funcref:
+                return 4
+            case TypeEncoding.i64 | TypeEncoding.f64:
+                return 8
+            case _:
+                raise Exception("Unknown size")
+
 class ExternalEncoding(Enum):
     # TODO: Use enum
     # Type Encoding (whatever that is)

@@ -43,8 +43,11 @@ class WasmView(BinaryView):
 		linear_memories = self.arch.wasm_obj.sections.linear_memories
 		assert len(linear_memories) == 1, "WHY DO YOU HAVE TWO LINEAR MEMORIES, WHAT DOES THAT MEAN?"
 		# https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#linear-memory-section
+		# RW Segment
 		self.add_auto_segment(0, 0x10000 * linear_memories[0].limits.minimum, 0, 0, SegmentFlag.SegmentReadable | SegmentFlag.SegmentContainsData)
+		# Code Segment
 		self.add_auto_segment(Wasm.base_addr, file_size, 0, file_size, SegmentFlag.SegmentContainsCode | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentDenyWrite)
+
 		self.add_auto_section("header", Wasm.base_addr, 0x8,SectionSemantics.ReadOnlyDataSectionSemantics)
 		# self.add_auto_section("code", Wasm.base_addr + 0x8, file_size - 0x8,SectionSemantics.ReadOnlyCodeSectionSemantics)
 
@@ -90,24 +93,25 @@ class WasmView(BinaryView):
 				SegmentFlag.SegmentReadable | SegmentFlag.SegmentContainsData
 			)
 		
-		# for idx, glob in enumerate(self.arch.wasm_obj.sections.globals):
-		# 	# Each global entry will start with a `GlobalDescription` which *should* be 2 bytes in size
-		# 	self.define_auto_symbol(Symbol(SymbolType.DataSymbol, glob.start_addr, 'global{}'.format(idx)))
-		# 	match glob.init[0].mnemonic:
-		# 		case 'i32.const':
-		# 			type = 'int'
-		# 		case 'i64.const':
-		# 			type = 'int64_t'
-		# 		case 'f32.const':
-		# 			type = 'float'
-		# 		case 'f64.const':
-		# 			type = 'double'
-		# 		case 'global.get':
-		# 			type = 'void'
-		# 		case _:
-		# 			raise Exception("Global value is not a valid instruction")
-		# 	self.define_data_var(glob.start_addr, type)
-		# 	self.get_data_var_at(glob.start_addr).value = glob.init[0].immediates.value
+
+		for idx, glob in enumerate(self.arch.wasm_obj.sections.globals):
+			# Each global entry will start with a `GlobalDescription` which *should* be 2 bytes in size
+			self.define_auto_symbol(Symbol(SymbolType.DataSymbol, glob.start_addr, 'global{}'.format(idx)))
+			match glob.init[0].mnemonic:
+				case 'i32.const':
+					type = 'int'
+				case 'i64.const':
+					type = 'int64_t'
+				case 'f32.const':
+					type = 'float'
+				case 'f64.const':
+					type = 'double'
+				case 'global.get':
+					type = 'void'
+				case _:
+					raise Exception("Global value is not a valid instruction")
+			self.define_data_var(glob.start_addr, type)
+			self.get_data_var_at(glob.start_addr).value = glob.get_init_value()
 
 		return True
 

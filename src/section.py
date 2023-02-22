@@ -221,9 +221,19 @@ class GlobalDeclaration:
     @bytes_read
     def __init__(self, f):
         self.desc = GlobalDescription(f)
-        self.start_addr = f.tell()
+        self.start_addr = f.tell() + Wasm.base_addr + 1
         self.init = InstantiationTimeInitializer(f)
+        assert len(self.init) == 2
+        assert self.init[-1].mnemonic == 'end'
         # assert self.desc.type == self.init.type, "The type of the value returned by init must be the same as desc's type"
+
+    def get_init_value(self):
+        return self.init[0].immediates.value
+    
+    def get_init_size(self):
+        return self.init[0].immediates.size
+    
+
 
 @dataclass
 class Export:
@@ -266,7 +276,7 @@ class TableInitializer:
 @dataclass
 class LocalEntry:
     count: int
-    type: ValueType
+    type: TypeEncoding
 
     @bytes_read
     def __init__(self, f):
@@ -277,7 +287,7 @@ class LocalEntry:
 class FunctionBody:
     opcode = '\x0a'
     body_size: int
-    locals: LocalEntry
+    locals: list[LocalEntry]
     instructions: list[Instruction]
     start_addr: int
     name: str
@@ -306,6 +316,9 @@ class DataInitializer:
     def __init__(self, f):
         self.index = VaruInt32(f)
         self.offset = InstantiationTimeInitializer(f)
+        assert len(self.offset) == 2
+        assert self.offset[-1].mnemonic == 'end'
+        assert self.offset[0].mnemonic == 'i32.const'
         # Used to be self.data = ByteArray(f)
         # Had to decompose to be able to get start_addr
         self.size = VaruInt32(f)
@@ -313,9 +326,6 @@ class DataInitializer:
         self.data = f.read(self.size)
     
     def get_offset(self):
-        assert len(self.offset) == 2
-        assert self.offset[-1].mnemonic == 'end'
-        assert self.offset[0].mnemonic == 'i32.const'
         return self.offset[0].immediates.value
         
 
@@ -390,7 +400,7 @@ class Wasm:
 
     def __init__(self, f):
         self.sections = Section(f)
-        self.functions = []
+        self.functions: list[FunctionBody | Import] = []
         for imp in self.sections.imports:
             self.functions.append(imp)
         
