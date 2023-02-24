@@ -96,7 +96,7 @@ def bytes_read(func):
     def wrapper(self, f):
         self.start = self.start_addr = f.tell()
         func(self, f)
-        self.end = f.tell()
+        self.end = self.end_addr = f.tell()
         self.size = self.end-self.start
     return wrapper
 
@@ -168,6 +168,7 @@ class Import:
     module_name: bytes
     export_name: bytes
     kind: int
+    signature: FunctionSignature
     sig_index: int = None
     desc: object = None
 
@@ -189,6 +190,12 @@ class Import:
             assert self.desc.mutability == 0, "All global imports are required to be immutable"
         else:
             assert False, "Import kind not found"
+        
+    def get_return_val(self):
+        if len(self.signature.returns) == 0:
+            return None
+        assert len(self.signature.returns) == 1
+        return self.signature.returns[0]
 
 def InstantiationTimeInitializer(f):
     instrs = []
@@ -291,18 +298,44 @@ class FunctionBody:
     instructions: list[Instruction]
     start_addr: int
     name: str
+    signature: FunctionSignature
 
     @bytes_read
     def __init__(self, f):
         self.body_size = VaruInt32(f)
         start = f.tell()
         self.locals = Array(f, LocalEntry)
+        # assert all(var.count == 1 for var in self.locals), "TODO, ADD THIS IN"
         self.start_addr = f.tell() + Wasm.base_addr
         self.instruction_size = self.body_size-(f.tell()-start)
         ff = BytesIO(b''.join([ByteType(f) for _ in range(self.body_size-(f.tell()-start))]))
         self.instructions = InstantiationTimeInitializer(ff)
         self.name = None
 
+    def get_var(self, id) -> TypeEncoding:
+        if id < len(self.signature.params):
+            return self.signature.params[id]
+        else:
+            cnt = 0
+            id -= len(self.signature.params)
+            for var in self.locals:
+                if id < cnt + var.count:
+                    return var.type
+                cnt += var.count
+            return None
+
+    def get_offset(self, id) -> int:
+        if id < len(self.signature.params):
+            return True, id*8
+            # return True, sum([param.get_size() for param in self.signature.params[:id]])
+        else:
+            return False, (id - len(self.signature.params)) * 8
+
+    def get_return_val(self) -> TypeEncoding:
+        if len(self.signature.returns) == 0:
+            return None
+        assert len(self.signature.returns) == 1
+        return self.signature.returns[0]
 
 @dataclass
 class DataInitializer:
@@ -324,7 +357,7 @@ class DataInitializer:
         self.size = VaruInt32(f)
         self.start_addr = f.tell()
         self.data = f.read(self.size)
-    
+        
     def get_offset(self):
         return self.offset[0].immediates.value
         
@@ -401,14 +434,17 @@ class Wasm:
     def __init__(self, f):
         self.sections = Section(f)
         self.functions: list[FunctionBody | Import] = []
+        types = self.sections.types
         for imp in self.sections.imports:
+            imp.signature = types[imp.sig_index]
             self.functions.append(imp)
         
         self.function_ends = set()
         self.depth_addr_mapping = {}    
 
-        for func in self.sections.codes:
+        for k, func in enumerate(self.sections.codes):
             func.name = "func_{}".format(func.start_addr - self.base_addr)
+            func.signature = types[self.sections.functions[k].index]
             self.functions.append(func)
             self.depth_addr_mapping.update(self.build_branch(func))
         
@@ -434,6 +470,12 @@ class Wasm:
                                     self.functions[func.index].name = func.name
 
         self.globals = self.sections.globals
+
+    def get_function(self, addr):
+        for function in self.functions:
+            if isinstance(function, FunctionBody) and function.start_addr <= addr < function.start_addr + function.instruction_size:
+                return function
+        return None
 
     
     def build_branch(self, func: FunctionBody):
