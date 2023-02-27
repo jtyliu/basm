@@ -80,28 +80,33 @@ class CurMemoryImm:
         self.reserved = VaruInt1(f)
 
 @dataclass
-class I32ConstImm:
+class ConstImm:
+    value: int
+    size: int
+
+@dataclass
+class I32ConstImm(ConstImm):
     value: int
     size: int = 4
     def __init__(self, f):
         self.value = VarsInt32(f)
 
 @dataclass
-class I64ConstImm:
+class I64ConstImm(ConstImm):
     value: int
     size: int = 8
     def __init__(self, f):
         self.value = VarsInt64(f)
 
 @dataclass
-class F32ConstImm:
+class F32ConstImm(ConstImm):
     value: float
     size: int = 4
     def __init__(self, f):
         self.value = Float32(f)
 
 @dataclass
-class F64ConstImm:
+class F64ConstImm(ConstImm):
     value: float
     size: int = 8
     def __init__(self, f):
@@ -109,33 +114,33 @@ class F64ConstImm:
 
 opcodes = [
     Opcode('unreachable', 0x00, None, '() : ()', IF.Q),
-    Opcode('nop', 0x01, None, '() : ()', None),
-    Opcode('block', 0x02, BlockImm, '() : ()', None),
+    Opcode('nop', 0x01, None, '() : ()', None), # DONE
+    Opcode('block', 0x02, BlockImm, '() : ()', None), # DONE
     Opcode('loop', 0x03, BlockImm, '() : ()', None),
     Opcode('if', 0x04, BlockImm, '($condition: i32) : ()', IF.B),
     Opcode('else', 0x05, None, '($T[$any]) : ($T[$any])', IF.B),
-    Opcode('end', 0x0b, None, '($T[$any]) : ($T[$any])', None),
-    Opcode('br', 0x0c, BranchImm, '($T[$block_arity]) : ($T[$block_arity])', IF.B | IF.Q),
+    Opcode('end', 0x0b, None, '($T[$any]) : ($T[$any])', None), # DONE
+    Opcode('br', 0x0c, BranchImm, '($T[$block_arity]) : ($T[$block_arity])', IF.B | IF.Q), # DONE
     Opcode('br_if', 0x0d, BranchImm, '($T[$block_arity], $condition: i32) : ($T[$block_arity])', IF.B),
     Opcode('br_table', 0x0e, BranchTableImm, '($T[$block_arity], $index: i32) : ($T[$block_arity])', IF.B | IF.Q),
-    Opcode('return', 0x0f, None, '($T[$block_arity]) : ($T[$block_arity])', IF.B | IF.Q),
+    Opcode('return', 0x0f, None, '($T[$block_arity]) : ($T[$block_arity])', IF.B | IF.Q), # DONE
 
-    Opcode('call', 0x10, CallImm, '($T[$args]) : ($T[$returns])', IF.L),
+    Opcode('call', 0x10, CallImm, '($T[$args]) : ($T[$returns])', IF.L), # DONE
     Opcode('call_indirect', 0x11, IndirectCallImm, '($T[$args], $callee: i32) : ($T[$returns])', IF.L),
 
-    Opcode('drop', 0x1a, None, '($T[1]) : ()', None),
+    Opcode('drop', 0x1a, None, '($T[1]) : ()', None), # DONE
     Opcode('select', 0x1b, None, '($T[1], $T[1], $condition: i32) : ($T[1])', None),
     
-    Opcode('local.get', 0x20, LocalVarImm, '() : ($T[1])', None),
-    Opcode('local.set', 0x21, LocalVarImm, '($T[1]) : ()', None),
-    Opcode('local.tee', 0x22, LocalVarImm, '($T[1]) : ($T[1])', None),
-    Opcode('global.get', 0x23, LocalVarImm, '() : ($T[1])', None),
-    Opcode('global.set', 0x24, LocalVarImm, '($T[1]) : ()', None),
+    Opcode('local.get', 0x20, LocalVarImm, '() : ($T[1])', None), # DONE
+    Opcode('local.set', 0x21, LocalVarImm, '($T[1]) : ()', None), # DONE
+    Opcode('local.tee', 0x22, LocalVarImm, '($T[1]) : ($T[1])', None), # DONE
+    Opcode('global.get', 0x23, LocalVarImm, '() : ($T[1])', None), # DONE
+    Opcode('global.set', 0x24, LocalVarImm, '($T[1]) : ()', None), # DONE
 
-    Opcode('i32.load', 0x28, MemoryImm, '($base: iPTR) : (i32)', IF.M | IF.G),
-    Opcode('i64.load', 0x29, MemoryImm, '($base: iPTR) : (i64)', IF.M | IF.G),
-    Opcode('f32.load', 0x2a, MemoryImm, '($base: iPTR) : (f32)', IF.M | IF.E),
-    Opcode('f32.load', 0x2b, MemoryImm, '($base: iPTR) : (f32)', IF.M | IF.E),
+    Opcode('i32.load', 0x28, MemoryImm, '($base: iPTR) : (i32)', IF.M | IF.G), # DONE
+    Opcode('i64.load', 0x29, MemoryImm, '($base: iPTR) : (i64)', IF.M | IF.G), # DONE
+    Opcode('f32.load', 0x2a, MemoryImm, '($base: iPTR) : (f32)', IF.M | IF.E), # DONE
+    Opcode('f64.load', 0x2b, MemoryImm, '($base: iPTR) : (f32)', IF.M | IF.E), # DONE
     Opcode('i32.load8_s', 0x2c, MemoryImm, '($base: iPTR) : (i32)', IF.M | IF.S),
     Opcode('i32.load8_u', 0x2d, MemoryImm, '($base: iPTR) : (i32)', IF.M | IF.U),
     Opcode('i32.load16_s', 0x2e, MemoryImm, '($base: iPTR) : (i32)', IF.M | IF.S),
@@ -146,10 +151,10 @@ opcodes = [
     Opcode('i64.load16_u', 0x33, MemoryImm, '($base: iPTR) : (i64)', IF.M | IF.U),
     Opcode('i64.load32_s', 0x34, MemoryImm, '($base: iPTR) : (i64)', IF.M | IF.S),
     Opcode('i64.load32_u', 0x35, MemoryImm, '($base: iPTR) : (i64)', IF.M | IF.U),
-    Opcode('i32.store', 0x36, MemoryImm, '($base: iPTR, $value: i32) : ()', IF.M | IF.G),
-    Opcode('i64.store', 0x37, MemoryImm, '($base: iPTR, $value: i64) : ()', IF.M | IF.G),
-    Opcode('f32.store', 0x38, MemoryImm, '($base: iPTR, $value: f32) : ()', IF.M | IF.F),
-    Opcode('f64.store', 0x39, MemoryImm, '($base: iPTR, $value: f64) : ()', IF.M | IF.F),
+    Opcode('i32.store', 0x36, MemoryImm, '($base: iPTR, $value: i32) : ()', IF.M | IF.G), # DONE
+    Opcode('i64.store', 0x37, MemoryImm, '($base: iPTR, $value: i64) : ()', IF.M | IF.G), # DONE
+    Opcode('f32.store', 0x38, MemoryImm, '($base: iPTR, $value: f32) : ()', IF.M | IF.F), # DONE
+    Opcode('f64.store', 0x39, MemoryImm, '($base: iPTR, $value: f64) : ()', IF.M | IF.F), # DONE
     Opcode('i32.store8', 0x3a, MemoryImm, '($base: iPTR, $value: i32) : ()', IF.M | IF.G),
     Opcode('i32.store16', 0x3b, MemoryImm, '($base: iPTR, $value: i32) : ()', IF.M | IF.G),
     Opcode('i64.store8', 0x3c, MemoryImm, '($base: iPTR, $value: i64) : ()', IF.M | IF.G),
@@ -157,10 +162,10 @@ opcodes = [
     Opcode('i64.store32', 0x3e, MemoryImm, '($base: iPTR, $value: i64) : ()', IF.M | IF.G),
     Opcode('memory.size', 0x3f, CurMemoryImm, '() : (iPTR)', IF.Z),
     Opcode('memory.grow', 0x40, CurMemoryImm, '($delta: iPTR) : (iPTR)', IF.Z),
-    Opcode('i32.const', 0x41, I32ConstImm, '() : (i32)', None),
-    Opcode('i64.const', 0x42, I64ConstImm, '() : (i64)', None),
-    Opcode('f32.const', 0x43, F32ConstImm, '() : (f32)', None),
-    Opcode('f64.const', 0x44, F64ConstImm, '() : (f64)', None),
+    Opcode('i32.const', 0x41, I32ConstImm, '() : (i32)', None), # DONE
+    Opcode('i64.const', 0x42, I64ConstImm, '() : (i64)', None), # DONE
+    Opcode('f32.const', 0x43, F32ConstImm, '() : (f32)', None), # DONE
+    Opcode('f64.const', 0x44, F64ConstImm, '() : (f64)', None), # DONE
 
     Opcode('i32.eqz', 0x45, None, '(i32) : (i32)', IF.G),
     Opcode('i32.eq', 0x46, None, '(i32, i32) : (i32)', IF.C | IF.G),
@@ -200,39 +205,39 @@ opcodes = [
     Opcode('i32.clz', 0x67, None, '(i32) : (i32)', IF.G),
     Opcode('i32.ctz', 0x68, None, '(i32) : (i32)', IF.G),
     Opcode('i32.popcnt', 0x69, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.add', 0x6a, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.sub', 0x6b, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.mul', 0x6c, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.div_s', 0x6d, None, '(i32) : (i32)', IF.S),
-    Opcode('i32.div_u', 0x6e, None, '(i32) : (i32)', IF.U),
-    Opcode('i32.rem_s', 0x6f, None, '(i32) : (i32)', IF.S | IF.R),
-    Opcode('i32.rem_u', 0x70, None, '(i32) : (i32)', IF.U | IF.R),
-    Opcode('i32.and', 0x71, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.or', 0x72, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.xor', 0x73, None, '(i32) : (i32)', IF.G),
-    Opcode('i32.shl', 0x74, None, '(i32) : (i32)', IF.T | IF.G),
-    Opcode('i32.shr_s', 0x75, None, '(i32) : (i32)', IF.T | IF.S),
-    Opcode('i32.shr_u', 0x76, None, '(i32) : (i32)', IF.T | IF.U),
-    Opcode('i32.rotl', 0x77, None, '(i32) : (i32)', IF.T | IF.G),
-    Opcode('i32.rotr', 0x78, None, '(i32) : (i32)', IF.T | IF.G),
+    Opcode('i32.add', 0x6a, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.sub', 0x6b, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.mul', 0x6c, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.div_s', 0x6d, None, '(i32) : (i32)', IF.S), # DONE
+    Opcode('i32.div_u', 0x6e, None, '(i32) : (i32)', IF.U), # DONE
+    Opcode('i32.rem_s', 0x6f, None, '(i32) : (i32)', IF.S | IF.R), # DONE
+    Opcode('i32.rem_u', 0x70, None, '(i32) : (i32)', IF.U | IF.R), # DONE
+    Opcode('i32.and', 0x71, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.or', 0x72, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.xor', 0x73, None, '(i32) : (i32)', IF.G), # DONE
+    Opcode('i32.shl', 0x74, None, '(i32) : (i32)', IF.T | IF.G), # DONE
+    Opcode('i32.shr_s', 0x75, None, '(i32) : (i32)', IF.T | IF.S), # DONE
+    Opcode('i32.shr_u', 0x76, None, '(i32) : (i32)', IF.T | IF.U), # DONE
+    Opcode('i32.rotl', 0x77, None, '(i32) : (i32)', IF.T | IF.G), # DONE
+    Opcode('i32.rotr', 0x78, None, '(i32) : (i32)', IF.T | IF.G), # DONE
     Opcode('i64.clz', 0x79, None, '(i64) : (i64)', IF.G),
     Opcode('i64.ctz', 0x7a, None, '(i64) : (i64)', IF.G),
     Opcode('i64.popcnt', 0x7b, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.add', 0x7c, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.sub', 0x7d, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.mul', 0x7e, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.div_s', 0x7f, None, '(i64) : (i64)', IF.S),
-    Opcode('i64.div_u', 0x80, None, '(i64) : (i64)', IF.U),
-    Opcode('i64.rem_s', 0x81, None, '(i64) : (i64)', IF.S | IF.R),
-    Opcode('i64.rem_u', 0x82, None, '(i64) : (i64)', IF.U | IF.R),
-    Opcode('i64.and', 0x83, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.or', 0x84, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.xor', 0x85, None, '(i64) : (i64)', IF.G),
-    Opcode('i64.shl', 0x86, None, '(i64) : (i64)', IF.T | IF.G),
-    Opcode('i64.shr_s', 0x87, None, '(i64) : (i64)', IF.T | IF.S),
-    Opcode('i64.shr_u', 0x88, None, '(i64) : (i64)', IF.T | IF.U),
-    Opcode('i64.rotl', 0x89, None, '(i64) : (i64)', IF.T | IF.G),
-    Opcode('i64.rotr', 0x8a, None, '(i64) : (i64)', IF.T | IF.G),
+    Opcode('i64.add', 0x7c, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.sub', 0x7d, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.mul', 0x7e, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.div_s', 0x7f, None, '(i64) : (i64)', IF.S), # DONE
+    Opcode('i64.div_u', 0x80, None, '(i64) : (i64)', IF.U), # DONE
+    Opcode('i64.rem_s', 0x81, None, '(i64) : (i64)', IF.S | IF.R), # DONE
+    Opcode('i64.rem_u', 0x82, None, '(i64) : (i64)', IF.U | IF.R), # DONE
+    Opcode('i64.and', 0x83, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.or', 0x84, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.xor', 0x85, None, '(i64) : (i64)', IF.G), # DONE
+    Opcode('i64.shl', 0x86, None, '(i64) : (i64)', IF.T | IF.G), # DONE
+    Opcode('i64.shr_s', 0x87, None, '(i64) : (i64)', IF.T | IF.S), # DONE
+    Opcode('i64.shr_u', 0x88, None, '(i64) : (i64)', IF.T | IF.U), # DONE
+    Opcode('i64.rotl', 0x89, None, '(i64) : (i64)', IF.T | IF.G), # DONE
+    Opcode('i64.rotr', 0x8a, None, '(i64) : (i64)', IF.T | IF.G), # DONE
 
     Opcode('f32.abs', 0x8b, None, '(f32) : (f32)', IF.E),
     Opcode('f32.neg', 0x8c, None, '(f32) : (f32)', IF.E),

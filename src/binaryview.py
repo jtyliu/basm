@@ -119,5 +119,3 @@ class WasmView(BinaryView):
 		# ????
 		return True
 
-WasmView.register()
-BinaryViewType['WASM'].register_platform_recognizer
