@@ -2,7 +2,7 @@
 
 
 # TODO
-- [ ] Lifting
+- [ ] Lifting (128/177)
 - [ ] Testing with existing binaries
 - [ ] Refactor section.py
 - [ ] Add more verification checks to wasm parsing
