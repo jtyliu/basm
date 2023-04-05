@@ -33,10 +33,32 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
     def arith_pop_two(sz, operator=None):
         bx = 'ebx' if sz == 4 else 'rbx'
         cx = 'ecx' if sz == 4 else 'rcx'
-        il.append(il.set_reg(sz, bx, il.pop(address_size)))
         il.append(il.set_reg(sz, cx, il.pop(address_size)))
+        il.append(il.set_reg(sz, bx, il.pop(address_size)))
         if operator:
             il.append(il.push(address_size, operator(sz, il.reg(sz, bx), il.reg(sz, cx))))
+
+    def if_expr_two(sz, operator):
+        bx = 'ebx' if sz == 4 else 'rbx'
+        cx = 'ecx' if sz == 4 else 'rcx'
+        il.append(il.set_reg(sz, cx, il.pop(address_size)))
+        il.append(il.set_reg(sz, bx, il.pop(address_size)))
+        t = LowLevelILLabel()
+        f = LowLevelILLabel()
+        end = LowLevelILLabel()
+        il.append(il.if_expr(operator(sz, il.reg(sz, bx), il.reg(sz, cx)), t, f))
+        il.mark_label(t)
+        il.append(il.push(address_size, il.const(address_size, 1)))
+        il.append(il.goto(end))
+        il.mark_label(f)
+        il.append(il.push(address_size, il.const(address_size, 0)))
+        il.mark_label(end)
+
+    def float_arith_one(sz, operator):
+        bx = 'ebx' if sz == 4 else 'rbx'
+        il.append(il.set_reg(sz, bx, il.pop(address_size)))
+        il.append(il.push(address_size, operator(sz, il.reg(sz, bx))))
+
 
     log_debug(instr)
     match instr:
@@ -95,6 +117,21 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
                 il.append(il.call(il.const_pointer(address_size, function.start_addr)))
         case Instruction('drop', _, _, _):
             il.append(il.pop(address_size))
+        case Instruction('select', _, _, _):
+            bx, cx, dx = 'rbx', 'rcx', 'rdx'
+            il.append(il.set_reg(address_size, dx, il.pop(address_size)))
+            il.append(il.set_reg(address_size, cx, il.pop(address_size)))
+            il.append(il.set_reg(address_size, bx, il.pop(address_size)))
+            t = LowLevelILLabel()
+            f = LowLevelILLabel()
+            end = LowLevelILLabel()
+            il.append(il.if_expr(il.compare_not_equal(address_size, il.reg(address_size, dx), il.const(address_size, 0)), t, f))
+            il.mark_label(t)
+            il.append(il.push(address_size, il.reg(address_size, bx)))
+            il.append(il.goto(end))
+            il.mark_label(f)
+            il.append(il.push(address_size, il.reg(address_size, cx)))
+            il.mark_label(end)
         case Instruction('local.get' | 'local.set' | 'local.tee', _, LocalVarImm(id), _):
             var = cur_function.get_var(id)
             is_param, offset = cur_function.get_offset(id) 
@@ -125,7 +162,35 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
                 il.append(il.push(address_size, il.load(sz, il.add(sz, il.pop(address_size), il.const(sz, offset)))))
             else:
                 arith_pop_two(sz)
-                il.append(il.store(sz, il.add(sz, il.reg(sz, cx), il.const(sz, offset)), il.reg(sz, bx)))
+                il.append(il.store(sz, il.add(sz, il.reg(sz, bx), il.const(sz, offset)), il.reg(sz, cx)))
+        case Instruction('i32.load8_s' | 'i32.load8_u' | 'i32.load16_s' | 'i32.load16_u' | 'i64.load8_s' | 'i64.load8_u' | 'i64.load16_s' | 'i64.load16_u' | 'i64.load32_s' | 'i64.load32_u', _, MemoryImm(_, offset), _):
+            if '32' in instr.mnemonic:
+                sz, bx, cx = 4, 'ebx', 'ecx'
+            else:
+                sz, bx, cx = 8, 'rbx', 'rcx'
+            if 'load8' in instr.mnemonic:
+                ld = il.load(1, il.add(sz, il.pop(address_size), il.const(sz, offset)))
+            elif 'load16' in instr.mnemonic:
+                ld = il.load(2, il.add(sz, il.pop(address_size), il.const(sz, offset)))
+            elif 'load32' in instr.mnemonic:
+                ld = il.load(4, il.add(sz, il.pop(address_size), il.const(sz, offset)))
+            if '_s' in instr.mnemonic:
+                il.append(il.push(address_size, il.sign_extend(sz, ld))) # TODO: Double check if sign_extend and zero_extend is corect
+            elif '_u' in instr.mnemonic:
+                il.append(il.push(address_size, il.zero_extend(sz, ld)))
+        case Instruction('i32.store8' | 'i32.store16' | 'i64.store8' | 'i64.store16' | 'i64.store32', _, MemoryImm(_, offset), _):
+            if '32' in instr.mnemonic:
+                sz, bx, cx = 4, 'ebx', 'ecx'
+            else:
+                sz, bx, cx = 8, 'rbx', 'rcx'
+            arith_pop_two(sz)
+            if 'store8' in instr.mnemonic:
+                new_sz = 1
+            elif 'store16' in instr.mnemonic:
+                new_sz = 2
+            elif 'store32' in instr.mnemonic:
+                new_sz = 4
+            il.append(il.store(new_sz, il.add(sz, il.reg(sz, bx), il.const(sz, offset)), il.reg(sz, cx)))
         case Instruction('i32.const' | 'i64.const' | 'f32.const' | 'f64.const', _, ConstImm(val, sz), _):
             if instr.mnemonic == 'f32.const':
                 il.append(il.push(address_size, il.float_const_single(val)))
@@ -174,6 +239,9 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
                     arith_pop_two(sz, il.rotate_left)
                 case 'i32.rotr' | 'i64.rotr':
                     arith_pop_two(sz, il.rotate_right)
+                case 'i64.extend_i32_u':
+                    # Could just be a nop, but here for completeness sakes
+                    il.append(il.push(address_size, il.pop(sz)))
                 case 'i32.eqz' | 'i64.eqz':
                     t = LowLevelILLabel()
                     f = LowLevelILLabel()
@@ -185,6 +253,60 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
                     il.mark_label(f)
                     il.append(il.push(address_size, il.const(address_size, 0)))
                     il.mark_label(end)
+                case 'i32.eq' | 'i64.eq':
+                    if_expr_two(sz, il.compare_equal)
+                case 'i32.ne' | 'i64.ne':
+                    if_expr_two(sz, il.compare_not_equal)
+                case 'i32.lt_s' | 'i64.lt_s':
+                    if_expr_two(sz, il.compare_signed_less_than)
+                case 'i32.lt_u' | 'i64.lt_u':
+                    if_expr_two(sz, il.compare_unsigned_less_than)
+                case 'i32.gt_s' | 'i64.gt_s':
+                    if_expr_two(sz, il.compare_signed_greater_than)
+                case 'i32.gt_u' | 'i64.gt_u':
+                    if_expr_two(sz, il.compare_unsigned_greater_than)
+                case 'i32.le_s' | 'i64.le_s':
+                    if_expr_two(sz, il.compare_signed_less_equal)
+                case 'i32.le_u' | 'i64.le_u':
+                    if_expr_two(sz, il.compare_unsigned_less_equal)
+                case 'i32.ge_s' | 'i64.ge_s':
+                    if_expr_two(sz, il.compare_signed_greater_equal)
+                case 'i32.ge_u' | 'i64.ge_u':
+                    if_expr_two(sz, il.compare_unsigned_greater_equal)
+                case 'f32.eq' | 'f64.eq':
+                    if_expr_two(sz, il.float_compare_equal)
+                case 'f32.ne' | 'f64.ne':
+                    if_expr_two(sz, il.float_compare_not_equal)
+                case 'f32.lt' | 'f64.lt':
+                    if_expr_two(sz, il.float_compare_less_than)
+                case 'f32.gt' | 'f64.gt':
+                    if_expr_two(sz, il.float_compare_greater_than)
+                case 'f32.le' | 'f64.le':
+                    if_expr_two(sz, il.float_compare_less_equal)
+                case 'f32.ge' | 'f64.ge':
+                    if_expr_two(sz, il.float_compare_greater_equal)
+                case 'f32.abs' | 'f64.abs':
+                    float_arith_one(sz, il.float_abs)
+                case 'f32.neg' | 'f64.neg':
+                    float_arith_one(sz, il.float_neg)
+                case 'f32.ceil' | 'f64.ceil':
+                    float_arith_one(sz, il.ceil)
+                case 'f32.floor' | 'f64.floor':
+                    float_arith_one(sz, il.floor)
+                case 'f32.trunc' | 'f64.trunc':
+                    float_arith_one(sz, il.float_trunc)
+                case 'f32.nearest' | 'f64.nearest':
+                    float_arith_one(sz, il.round_to_int)
+                case 'f32.sqrt' | 'f64.sqrt':
+                    float_arith_one(sz, il.float_sqrt)
+                case 'f32.add' | 'f64.add':
+                    arith_pop_two(sz, il.float_add)
+                case 'f32.sub' | 'f64.sub':
+                    arith_pop_two(sz, il.float_sub)
+                case 'f32.mul' | 'f64.mul':
+                    arith_pop_two(sz, il.float_mult)
+                case 'f32.div' | 'f64.div':
+                    arith_pop_two(sz, il.float_div)
                 case _:
                     il.append(il.unimplemented())
     return instr.size

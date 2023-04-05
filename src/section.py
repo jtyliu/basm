@@ -413,7 +413,7 @@ class Section:
         while peek(f):
             self.opcode = VaruInt7(f)
             len = VaruInt32(f)
-            print("Section opcode", self.opcode, hex(len), peek(f, 0x10))
+            # print("Section opcode", self.opcode, hex(len), peek(f, 0x10))
             name, cls = SectionOpcodes[self.opcode]
             if self.opcode == 0:
                 if hasattr(self, name):  # TODO: Use defaultdict

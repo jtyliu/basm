@@ -21,6 +21,8 @@ class WASM(Architecture):
 		'ebx': RegisterInfo('ebx', 4),
 		'rcx': RegisterInfo('rcx', 8),
 		'ecx': RegisterInfo('ecx', 4),
+		'rdx': RegisterInfo('rdx', 8),
+		'edx': RegisterInfo('edx', 4),
 	}
 
 	stack_pointer = "rsp"
