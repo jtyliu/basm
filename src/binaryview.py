@@ -40,11 +40,14 @@ class WasmView(BinaryView):
 		self.arch.wasm_obj = Wasm(BytesIO(self.parent_view.read(0, file_size)))
 
 		# Define segment which the code lives in
-		linear_memories = self.arch.wasm_obj.sections.linear_memories
-		assert len(linear_memories) == 1, "WHY DO YOU HAVE TWO LINEAR MEMORIES, WHAT DOES THAT MEAN?"
-		# https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#linear-memory-section
-		# RW Segment
-		self.add_auto_segment(0, 0x10000 * linear_memories[0].limits.minimum, 0, 0, SegmentFlag.SegmentReadable | SegmentFlag.SegmentContainsData)
+		if len(self.arch.wasm_obj.sections.linear_memories) != 0:
+			linear_memories = self.arch.wasm_obj.sections.linear_memories
+			assert len(linear_memories) <= 1, "WHY DO YOU HAVE TWO LINEAR MEMORIES, WHAT DOES THAT MEAN?"
+			# https://github.com/sunfishcode/wasm-reference-manual/blob/master/WebAssembly.md#linear-memory-section
+			# RW Segment
+			self.add_auto_segment(0, 0x10000 * linear_memories[0].limits.minimum, 0, 0, SegmentFlag.SegmentReadable | SegmentFlag.SegmentContainsData)
+		else:
+			self.add_auto_segment(0, 0x10000 * 2, 0, 0, SegmentFlag.SegmentReadable | SegmentFlag.SegmentContainsData)
 		# Code Segment
 		self.add_auto_segment(Wasm.base_addr, file_size, 0, file_size, SegmentFlag.SegmentContainsCode | SegmentFlag.SegmentExecutable | SegmentFlag.SegmentDenyWrite)
 

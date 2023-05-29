@@ -94,7 +94,7 @@ def SignatureType(f):
 
 def BlockType(f):
     type = TypeEncoding(VarsInt7(f))
-    assert type == TypeEncoding.void, "`BlockType` is required to be `void`"
+    # assert type == TypeEncoding.void, "`BlockType` is required to be `void`"
     return type
 
 class TypeEncoding(Enum):

@@ -43,6 +43,11 @@ class WASM(Architecture):
 			case "br_if":
 				result.add_branch(BranchType.TrueBranch, wasm_obj.depth_addr_mapping[addr])
 				result.add_branch(BranchType.FalseBranch, addr+instr.size)
+			case "if":
+				result.add_branch(BranchType.TrueBranch, addr+instr.size)
+				result.add_branch(BranchType.FalseBranch, wasm_obj.depth_addr_mapping[addr])
+			case "else":
+				result.add_branch(BranchType.UnconditionalBranch, wasm_obj.depth_addr_mapping[addr])
 			case "br_table":
 				# Nushy on slack: binja just doesn't support "jumps to N static places" at the disassembly level
 				# for addr in wasm_obj.depth_addr_mapping[addr]:

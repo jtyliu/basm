@@ -2,6 +2,7 @@
 
 
 # TODO
+- [ ] Disassemble [vector instructions](https://webassembly.github.io/spec/core/binary/instructions.html#vector-instructions)
 - [ ] Lifting (128/177)
 - [ ] Testing with existing binaries
 - [ ] Refactor section.py

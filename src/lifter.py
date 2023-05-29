@@ -62,38 +62,46 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
 
     log_debug(instr)
     match instr:
+        case Instruction('unreachable', _, _, _):
+            il.append(il.no_ret())
         case Instruction('nop', _, _, _):
             il.append(il.nop())
         case Instruction('block', _, _, _):
             il.append(il.nop())
         case Instruction('loop', _, _, _):
             il.append(il.nop())
-        case Instruction('br', _, _, _):
+        case Instruction('br', _, _, _) | Instruction('else', _, _, _):
             dest = wasm_obj.depth_addr_mapping[addr]
             label = il.get_label_for_address(Architecture['WASM'], dest)
             if label:
                 il.append(il.goto(label))
             else:
                 il.append(il.jump(il.const_pointer(address_size, dest)))
-        case Instruction('br_if', _, _, _):
-            true = wasm_obj.depth_addr_mapping[addr]
-            false = addr + instr.size
+        case Instruction('br_if', _, _, _) | Instruction('if', _, _, _):
+            if instr.mnemonic == 'br_if':
+                true = wasm_obj.depth_addr_mapping[addr]
+                false = addr + instr.size
+            elif instr.mnemonic == 'if':
+                true = addr + instr.size
+                false = wasm_obj.depth_addr_mapping[addr]
             t = il.get_label_for_address(Architecture['WASM'], true)
             f = il.get_label_for_address(Architecture['WASM'], false)
             tl = LowLevelILLabel()
             fl = LowLevelILLabel()
+            bx = 'rbx'
+            il.append(il.set_reg(address_size, bx, il.pop(address_size)))
             if t is not None and f is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.pop(address_size), il.const(address_size, 1)), t, f))
+                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), t, f))
             elif t is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.pop(address_size), il.const(address_size, 1)), t, fl))
+                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), t, fl))
                 il.mark_label(fl)
                 il.append(il.jump(il.const_pointer(address_size, false)))
             elif f is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.pop(address_size), il.const(address_size, 1)), tl, f))
+                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), tl, f))
                 il.mark_label(tl)
                 il.append(il.jump(il.const_pointer(address_size, true)))
             else:
-                il.append(il.if_expr(il.compare_equal(address_size, il.pop(address_size), il.const(address_size, 1)), tl, fl))
+                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), tl, fl))
                 il.mark_label(tl)
                 il.append(il.jump(il.const_pointer(address_size, true)))
                 il.mark_label(fl)
@@ -106,6 +114,7 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
             il.append(il.set_reg(address_size, 'rax', il.pop(address_size)))
             il.append(il.set_reg(address_size, 'rsp', il.reg(address_size, 'rbp')))
             il.append(il.set_reg(address_size, 'rbp', il.pop(address_size)))
+            il.append(il.set_reg(address_size, 'rdx', il.pop(address_size)))
             il.append(il.ret(il.pop(address_size)))
         case Instruction('call', _, CallImm(callee), _):
             function: FunctionBody = wasm_obj.functions[callee]
@@ -246,7 +255,9 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
                     t = LowLevelILLabel()
                     f = LowLevelILLabel()
                     end = LowLevelILLabel()
-                    il.append(il.if_expr(il.compare_equal(address_size, il.pop(address_size), il.const(address_size, 0)), t, f))
+                    bx = 'rbx'
+                    il.append(il.set_reg(address_size, bx, il.pop(address_size)))
+                    il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 0)), t, f))
                     il.mark_label(t)
                     il.append(il.push(address_size, il.const(address_size, 1)))
                     il.append(il.goto(end))

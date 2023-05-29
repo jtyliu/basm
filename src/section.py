@@ -7,6 +7,7 @@ from tokenize import Name
 from .encoding import *
 from .disasm import BranchImm, BranchTableImm, Instruction, disasm
 import functools
+from binaryninja import log_info, log_warn
 
 
 class NameType(Enum):
@@ -168,7 +169,7 @@ class Import:
     module_name: bytes
     export_name: bytes
     kind: int
-    signature: FunctionSignature
+    signature: FunctionSignature = None
     sig_index: int = None
     desc: object = None
 
@@ -390,18 +391,18 @@ SectionOpcodes = {
 }
 
 class Section:
-    customs: list[Custom]
-    types: list[FunctionSignature]
-    imports: list[Import]
-    functions: list[Function]
-    tables: list[TableDescription]
-    linear_memories: list[LinearMemoryDescription]
-    globals: list[GlobalDeclaration]
-    exports: list[Export]
+    customs: list[Custom] = []
+    types: list[FunctionSignature] = []
+    imports: list[Import] = []
+    functions: list[Function] = []
+    tables: list[TableDescription] = []
+    linear_memories: list[LinearMemoryDescription] = []
+    globals: list[GlobalDeclaration] = []
+    exports: list[Export] = []
     start: StartSection
-    elements: list[TableInitializer]
-    codes: list[FunctionBody]
-    datas: list[DataInitializer]
+    elements: list[TableInitializer] = []
+    codes: list[FunctionBody] = []
+    datas: list[DataInitializer] = []
     
     def __init__(self, f):
         self.magic_cookie = UInt32(f)
@@ -413,18 +414,20 @@ class Section:
         while peek(f):
             self.opcode = VaruInt7(f)
             len = VaruInt32(f)
-            # print("Section opcode", self.opcode, hex(len), peek(f, 0x10))
-            name, cls = SectionOpcodes[self.opcode]
-            if self.opcode == 0:
-                if hasattr(self, name):  # TODO: Use defaultdict
+            log_info("Section opcode {} {} {}".format(self.opcode, hex(len), peek(f, 0x10)))
+            if self.opcode in SectionOpcodes:
+                name, cls = SectionOpcodes[self.opcode]
+                if self.opcode == 0:
+                    assert hasattr(self, name)  # TODO: Use defaultdict
                     obj = getattr(self, name)
                     obj.append(cls(BytesIO(f.read(len))))
+                    setattr(self, name, obj)
                 else:
-                    obj = [cls(BytesIO(f.read(len)))]
-                setattr(self, name, obj)
+                    # assert not hasattr(self, name)
+                    setattr(self, name, cls(f))
             else:
-                assert not hasattr(self, name)
-                setattr(self, name, cls(f))
+                log_warn("Unknown section {}".format(self.opcode))
+                f.read(len)
         # Let's make sure it read all the data
         assert f.read() == b''
 
@@ -436,8 +439,9 @@ class Wasm:
         self.functions: list[FunctionBody | Import] = []
         types = self.sections.types
         for imp in self.sections.imports:
-            imp.signature = types[imp.sig_index]
-            self.functions.append(imp)
+            if imp.kind == ExternalEncoding.Function:
+                imp.signature = types[imp.sig_index]
+                self.functions.append(imp)
         
         self.function_ends = set()
         self.depth_addr_mapping = {}    
@@ -459,7 +463,7 @@ class Wasm:
                 case ExternalEncoding.Global:
                     pass
 
-        for custom in getattr(self.sections, 'customs', []):
+        for custom in self.sections.customs:
             # This horrible nested stuff is because there's several other cases to conside
             match custom.name:
                 case b"name":
@@ -483,11 +487,16 @@ class Wasm:
         # https://openhome.cc/eGossip/WebAssembly/If.html
         # https://openhome.cc/eGossip/WebAssembly/Loop.html
         branch_stack = []
+        # Branch data for if, else
         branch_mapping = {}
         cur_addr = func.start_addr
+        # Branch data for br_ instructions
         depth_addr_mapping = {}
         for instr in func.instructions:
             if instr.mnemonic in ['block', 'loop', 'if']:
+                branch_stack.append(cur_addr)
+            if instr.mnemonic == 'else':
+                branch_mapping[branch_stack.pop()] = cur_addr+instr.size
                 branch_stack.append(cur_addr)
             if instr.mnemonic == 'end':
                 if len(branch_stack) == 0:
@@ -519,7 +528,7 @@ class Wasm:
                 depth_addr_mapping[cur_addr] = [branch_stack[-(depth+1)][1] for depth in imm.table]
 
             cur_addr += instr.size
-        return depth_addr_mapping
+        return depth_addr_mapping | branch_mapping
     
 
 if __name__ == '__main__':
