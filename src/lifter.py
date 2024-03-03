@@ -91,17 +91,17 @@ def lift(data: bytes, addr: int, il: LowLevelILFunction, address_size: int):
             bx = 'rbx'
             il.append(il.set_reg(address_size, bx, il.pop(address_size)))
             if t is not None and f is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), t, f))
+                il.append(il.if_expr(il.compare_not_equal(address_size, il.reg(address_size, bx), il.const(address_size, 0)), t, f))
             elif t is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), t, fl))
+                il.append(il.if_expr(il.compare_not_equal(address_size, il.reg(address_size, bx), il.const(address_size, 0)), t, fl))
                 il.mark_label(fl)
                 il.append(il.jump(il.const_pointer(address_size, false)))
             elif f is not None:
-                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), tl, f))
+                il.append(il.if_expr(il.compare_not_equal(address_size, il.reg(address_size, bx), il.const(address_size, 0)), tl, f))
                 il.mark_label(tl)
                 il.append(il.jump(il.const_pointer(address_size, true)))
             else:
-                il.append(il.if_expr(il.compare_equal(address_size, il.reg(address_size, bx), il.const(address_size, 1)), tl, fl))
+                il.append(il.if_expr(il.compare_not_equal(address_size, il.reg(address_size, bx), il.const(address_size, 0)), tl, fl))
                 il.mark_label(tl)
                 il.append(il.jump(il.const_pointer(address_size, true)))
                 il.mark_label(fl)
