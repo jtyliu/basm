@@ -471,6 +471,9 @@ class Wasm:
                         match name_subsection.type:
                             case NameType.Function:
                                 for func in name_subsection.function_names:
+                                    if func.index >= len(self.functions):
+                                        print("WTF", func)
+                                        continue
                                     self.functions[func.index].name = func.name
 
         self.globals = self.sections.globals

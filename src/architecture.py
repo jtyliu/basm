@@ -7,7 +7,7 @@ from .lifter import lift
 
 class WASM(Architecture):
 	name = 'WASM'
-	address_size = 8 # 4 byte addresses???
+	address_size = 8 # 4 byte addresses
 	default_int_size = 8 # 4 byte integers
 	instr_alignment = 1	# No instruction alignment
 	max_instr_length = 100

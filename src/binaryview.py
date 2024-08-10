@@ -1,5 +1,6 @@
 from binaryninja import *
 import struct
+import hashlib
 
 from .section import GlobalDeclaration, Wasm, Import, FunctionBody
 from io import BytesIO
@@ -36,8 +37,11 @@ class WasmView(BinaryView):
 	def init(self) -> bool:
 		# https://github.com/CarveSystems/binjawa/blob/master/binaryview.py
 		# shameless copy
-		file_size = len(self.parent_view)
-		self.arch.wasm_obj = Wasm(BytesIO(self.parent_view.read(0, file_size)))
+		file_data = open(self._file.filename, 'rb').read()
+		file_size = len(file_data)
+		f = BytesIO(file_data)
+		
+		self.arch.wasm_obj = Wasm(f)
 
 		# Define segment which the code lives in
 		if len(self.arch.wasm_obj.sections.linear_memories) != 0:
